@@ -1,27 +1,19 @@
-# Frobnicator
+# Komunikator 
 
 ## Autorzy
-- Andrzej Głuszak (gr 9, @agluszak na githubie)
-- Linus Torvalds (Uniwersytet Helsiński, @torvalds na githubie)
+- Julia Karmowska (gr 4, @jkarmowska na githubie)
 
 ## Opis
-Od zawsze chcieliśmy napisać grę komputerową.
-Frobnicator będzie to gra platformowa, w której chodzi o to, żeby...
-
-Z grubsza będziemy wzorować się na [tym tutorialu](https://dev.to/sbelzile/rust-platformer-part-1-bevy-and-ecs-2pci).
+Klient i serwer czatu w Ruscie
 
 ## Funkcjonalność
-- Generowanie map
-- Strzelanie
-- AI dla wrogów (bardziej rozbudowane niż w tutorialu)
-- Możliwość zapisywania i wczytywania stanu gry
-- Punktacja
+- Logowanie użytkowników i ustawianie nicków
+- Wysyłanie wiadomości do grupy użytkowników
+- Połączenie przez TCP
 
 ## Propozycja podziału na części
-W pierwszej części stworzymy grę opartą na tutorialu (z lepszym AI) i jedną zahardcodowaną planszą.
+Pierwsza część - klient dołącza do jednej grupy na początku, grupy tworzone wraz z serwerem 
 
-W drugiej części dodamy do tego losowy generator map, zapisywanie/wczytywanie stanu gry oraz system punktacji.
-
+Druga część - klient może być w kilku grupach, może opuścić grupę, stworzyć nową, wybrać do której grupy chce wysłać wiadomość
 ## Biblioteki
-- Bevy
-- może coś do serializacji danych? (czy mógłby Pan coś polecić?)
+- Tokio - do obsługi współbieżności
