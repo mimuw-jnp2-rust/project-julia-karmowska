@@ -1,12 +1,7 @@
 use std::io::stdin;
-use std::net::SocketAddr;
-use std::sync::mpsc::Receiver;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
-use tokio::net::{TcpStream, tcp::ReadHalf};
-use tokio::net::tcp::WriteHalf;
-use tracing::{error, info};
+use tokio::net::{TcpStream};
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::SendError;
 
 const SERVER: &str = "localhost:8080";
 const QUIT: &str = "/quit\n";
@@ -44,7 +39,7 @@ async fn main() {
                         if len == 0 {
                             break;
                         }
-                        println!("{}", line);
+                        print!("{}", line);
                     }
                 Err(_) => {
                     println!("Connection lost! type {} to quit", QUIT.trim());
