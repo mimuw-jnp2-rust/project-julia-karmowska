@@ -12,7 +12,7 @@ const LOCAL: &str = "localhost:8080";
 const MAX_CLIENT_NUM: usize = 20;
 const NAME_SIZE: usize = 30;
 const MESSAGE_SIZE: usize = 256;
-const ERROR_MSG: &str = "**************ERROR_MSG*************";
+const ERROR_MSG: &str = "**************ERROR_MSG*************\n";
 
 
 async fn write_buf<'a>(writer: &mut OwnedWriteHalf, message: &str) {
@@ -48,11 +48,16 @@ async fn receive_msg(reader: &mut BufReader<OwnedReadHalf>, user: &str) -> Resul
     let mut buffer = String::with_capacity(MESSAGE_SIZE);
     match reader.read_line(&mut buffer).await {
         Ok(_) => {
-            let mut msg = format!("{}:{}", user, buffer.as_str());
+            if buffer.is_empty() {
+                return Err(String::from(ERROR_MSG));
+            }
+
+            let mut msg = format!("{} : {}", user, buffer.as_str());
             if msg.len() > MESSAGE_SIZE {
                 msg.truncate(MESSAGE_SIZE - 1);
                 msg.push('\n');
             }
+
             Ok(msg)
         }
         Err(_) => { Err(String::from(ERROR_MSG)) }
@@ -78,9 +83,9 @@ async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, se
                 }
             }
             Err(_) => {
-                format!("{} has left the chat", &name);
-                if sender.send((msg.unwrap(), name.parse().unwrap())).is_ok() {} else {
-                    println!("DEBUG: Exit message from {} vould not be send to broadcast", &name);
+                let err_msg = format!("{} has left the chat", &name);
+                if sender.send((err_msg, name.parse().unwrap())).is_ok() {} else {
+                    println!("DEBUG: Exit message from {} could not be send to broadcast", &name);
                 }
                 break;
             }
@@ -97,11 +102,11 @@ async fn main() {
     let (sender, mut receiver) = broadcast::channel::<(String,String) >(10); //sending strings to max 10 ppl who can connect
     let mut clients_cp = Arc::clone(&clients);
 
-    //task który wysyła do receivera gdy client otrzyma wiadomość -
-    // wtedy receiver robi broadcast do wszystkich klientów
+    //task do którego inne wątki wysyłają wiadomości od swoich klientów -
+    //robi broadcast do wszystkich klientów
     tokio::spawn(async move {
         loop {
-            if let Ok(msg) = receiver.try_recv() {
+            if let Ok(msg) = receiver.recv().await {
                 println!("Broadcasting message : {}", msg.0);
                 broadcast(&mut clients_cp, &msg.0, &msg.1).await;
             }
@@ -109,7 +114,7 @@ async fn main() {
     });
 
 
-    //nowi klienci
+    //nowy klient
     loop {
         let ( socket, addr) = listener.accept().await.unwrap();
         let sender = sender.clone();//klonowanie tx dla kazdego klienta
@@ -139,7 +144,7 @@ async fn main() {
                     let arrival_msg = format!("User {} has joined. \n", name);
                     if sender.send((arrival_msg, name.clone())).is_ok(){}
                     else{
-                        println!("DEBUG: message from {} could not be broadccast", name);
+                        println!("DEBUG: message from {} could not be broadcast", name);
                     }
 
                     handle_connection(&mut reader, &name, sender).await;

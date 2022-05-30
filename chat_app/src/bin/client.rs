@@ -11,8 +11,8 @@ const QUIT: &str = "/quit\n";
 
 #[tokio::main]
 async fn main() {
-    let mut stream = TcpStream::connect(SERVER).await.unwrap();
-    let (read, mut write) = stream.into_split();
+    let stream = TcpStream::connect(SERVER).await.unwrap();
+    let (read, write) = stream.into_split();
     println!("Connection with server established at {}, enter {} to exit chat", &mut read.peer_addr().unwrap(), QUIT.trim());
 
     println!("Wait until you will be asked to enter your username");
@@ -39,7 +39,7 @@ async fn main() {
                         if len == 0 {
                             break;
                         }
-                        print!("{}", line);
+                        print!("{}", line); //wypisywanie otrzymanej wiadomości
                     }
                 Err(_) => {
                     println!("Connection lost! type {} to quit", QUIT.trim());
@@ -55,23 +55,22 @@ async fn main() {
         let msg_send = stdin().read_line(&mut input); //user wpisuje wiadomość
         match msg_send {
             Ok(_) => {
-                if input == String::from(QUIT) {//user wpisał quit
+                if input == *QUIT {//user wpisał quit
                     let quit_msg = input.clone();
-                    match sender.send(quit_msg).await { //wysyłanie waidomości o zakończeniu
+                    match sender.send(quit_msg).await { //wysyłanie wiadomości o zakończeniu
                         Ok(_) => {}
                         Err(_) => {
-                            println!("Exiting ");
+                            println!("Error on sending exit");
                         }
                     }
                     break;
-                } else {
-                    let res = writer.write(input.as_bytes()).await; //wysyłanie do servera wiadomości
-                    match res {
-                        Ok(_) => { writer.flush().await.expect("Failed to flush buffer") }
-                        Err(_) => {
-                            println!("Connection lost! type {} to quit", QUIT.trim());
-                            break;
-                        }
+                }
+                let res = writer.write(input.as_bytes()).await; //wysyłanie do servera wiadomości
+                match res {
+                    Ok(_) => { writer.flush().await.expect("Failed to flush buffer") }
+                    Err(_) => {
+                        println!("Connection lost! type {} to quit", QUIT.trim());
+                        break;
                     }
                 }
             }
