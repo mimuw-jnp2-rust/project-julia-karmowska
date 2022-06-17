@@ -1,7 +1,8 @@
 use std::sync::Arc;
+use std::sync::mpsc::Receiver;
 use tokio::net::{TcpListener};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, };
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc};
 
 use dashmap::DashMap;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
@@ -9,7 +10,7 @@ use tokio::sync::broadcast::Sender;
 
 use log::{info, warn};
 use simple_logger::SimpleLogger;
-
+use chat_app::types::Message;
 
 
 const LOCAL: &str = "localhost:8080";
@@ -17,6 +18,7 @@ const MAX_CLIENT_NUM: usize = 20;
 const NAME_SIZE: usize = 30;
 const MESSAGE_SIZE: usize = 256;
 const ERROR_MSG: &str = "**************ERROR_MSG*************\n";
+const CHANNEL_COUNT:usize = 10;
 
 async fn write_buf<'a>(writer: &mut OwnedWriteHalf, message: &str) {
     writer.write(message.as_bytes()).await.expect("Failed to write msg");
@@ -95,7 +97,11 @@ async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, se
         }
     }
 }
-
+struct Channel{
+    sender:Sender<Message>,
+    receiver: Receiver<Message>,
+    users: Arc<DashMap<String, OwnedWriteHalf>>;
+}
 #[tokio::main]
 async fn main() {
     SimpleLogger::new().init().unwrap();
@@ -104,7 +110,10 @@ async fn main() {
 
     let clients: Arc<DashMap<String, OwnedWriteHalf>> = Arc::new(DashMap::with_capacity(MAX_CLIENT_NUM));//klienci
 
-    let (sender, mut receiver) = broadcast::channel::<(String,String) >(10); //sending strings to max 10 ppl who can connect
+    for i in 0..CHANNEL_COUNT{
+        let (sender, mut receiver) = mpsc::channel::<(String,String) >(MAX_CLIENT_NUM);
+
+    }
     let mut clients_cp = Arc::clone(&clients);
 
     //task do którego inne wątki wysyłają wiadomości od swoich klientów -
@@ -131,17 +140,20 @@ async fn main() {
         let len = clients_mut.len();
         if len >= MAX_CLIENT_NUM {
             info!("Refusing the connection. Chat is full");
-            let refuse_msg = format!("Chat is full. ({}/{}). Try again later!", MAX_CLIENT_NUM, MAX_CLIENT_NUM);
-            writer.write(refuse_msg.as_bytes()).await.expect("Error on write to client!");
+            //let refuse_msg = format!("Chat is full. ({}/{}). Try again later!", MAX_CLIENT_NUM, MAX_CLIENT_NUM);
+            writer.write(serde_json::to_string(&Message::ChatFull {}).unwrap().as_bytes()).await;
         } else {
-            info!("Initializing client no. {}. Requesting username", len);
+            writer.write(serde_json::to_string(&Message::Ok {}).unwrap().as_bytes()).await;
+
+            info!("Initializing client no. {}. Waiting for username and channel number", len);
 
             tokio::spawn(async move { //spawnowanie taska obsługi klienta
 
                 let mut reader = BufReader::new(reader); //buffer czyta z socketa tcp od klienta
                 //let mut line = String::new();
-                write_buf(&mut writer, "Enter username \n").await;
-                if let  Ok(name) = request_username(&mut reader, &mut writer, &mut clients_mut).await
+                //write_buf(&mut writer, "Enter username \n").await;
+                let hello = Message::Hello { username: "".to_string(), channel: 0 };
+                if let  Ok(hello) = request_username(&mut reader, &mut writer, &mut clients_mut).await
                 {
                     clients_mut.insert(name.clone(), writer);
                     info!("Client {} has joined", name); //debug msg

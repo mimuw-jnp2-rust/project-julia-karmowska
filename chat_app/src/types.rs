@@ -1,12 +1,15 @@
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use serde::{Serialize, Deserialize};
+use serde_json;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
     pub id: Uuid,
     pub name: String,
 }
-
 impl User {
     pub fn new(id: Uuid, name: &str) -> Self {
         User {
@@ -16,23 +19,33 @@ impl User {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Message {
-    pub id: Uuid,
-    pub user: User,
-    pub body: String,
-    pub group: Uuid,
-    pub time: DateTime<Utc>,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+
+struct Text{
+    pub time : DateTime<Utc>,
+    pub user :String,
+    pub text: String,
 }
 
-impl Message {
-    pub fn new(id: Uuid, user: User, msg: &str, group: Uuid, time: DateTime<Utc>) -> Self {
-        Message {
-            id,
-            user,
-            body: String::from(msg),
-            group,
-            time,
-        }
-    }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Message {
+    ClientMessage {
+        message:String
+    },
+    Hello {
+        username: String,
+        channel: usize,
+    },
+    History {
+        messages: BTreeMap<String, String>,
+    },
+    Quit {
+    },
+    SwitchChannel {
+        new_channel: usize,
+    },
+    UsernameTaken{},
+    Ok{},
+    ChatFull{}
 }
