@@ -2,18 +2,22 @@ use std::io::stdin;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::net::{TcpStream};
 use tokio::sync::mpsc;
+use log::{info, warn};
+use simple_logger::SimpleLogger;
 
 const SERVER: &str = "localhost:8080";
 const QUIT: &str = "/quit\n";
 
 
-//async fn receive(mut reader: BufReader<ReadHalf>, receiver: Receiver<(String, SocketAddr)>) {}
+
 
 #[tokio::main]
 async fn main() {
+    SimpleLogger::new().init().unwrap();
+
     let stream = TcpStream::connect(SERVER).await.unwrap();
     let (read, write) = stream.into_split();
-    println!("Connection with server established at {}, enter {} to exit chat", &mut read.peer_addr().unwrap(), QUIT.trim());
+    info!("Connection with server established at {}, enter {} to exit chat", &mut read.peer_addr().unwrap(), QUIT.trim());
 
     println!("Wait until you will be asked to enter your username");
 
@@ -42,7 +46,7 @@ async fn main() {
                         print!("{}", line); //wypisywanie otrzymanej wiadomości
                     }
                 Err(_) => {
-                    println!("Connection lost! type {} to quit", QUIT.trim());
+                    info!("Connection lost! type {} to quit", QUIT.trim());
                 }
             }
         }
@@ -60,7 +64,7 @@ async fn main() {
                     match sender.send(quit_msg).await { //wysyłanie wiadomości o zakończeniu
                         Ok(_) => {}
                         Err(_) => {
-                            println!("Error on sending exit");
+                            warn!("Error on sending exit");
                         }
                     }
                     break;
@@ -69,13 +73,13 @@ async fn main() {
                 match res {
                     Ok(_) => { writer.flush().await.expect("Failed to flush buffer") }
                     Err(_) => {
-                        println!("Connection lost! type {} to quit", QUIT.trim());
+                        warn!("Connection lost! type {} to quit", QUIT.trim());
                         break;
                     }
                 }
             }
             Err(_) => {
-                println!("Error while reading input. ");
+                warn!("Error while reading input. ");
             }
         }
     }

@@ -7,13 +7,16 @@ use dashmap::DashMap;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::broadcast::Sender;
 
+use log::{info, warn};
+use simple_logger::SimpleLogger;
+
+
 
 const LOCAL: &str = "localhost:8080";
 const MAX_CLIENT_NUM: usize = 20;
 const NAME_SIZE: usize = 30;
 const MESSAGE_SIZE: usize = 256;
 const ERROR_MSG: &str = "**************ERROR_MSG*************\n";
-
 
 async fn write_buf<'a>(writer: &mut OwnedWriteHalf, message: &str) {
     writer.write(message.as_bytes()).await.expect("Failed to write msg");
@@ -79,13 +82,13 @@ async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, se
         match msg {
             Ok(_) => {
                 if sender.send((msg.clone().unwrap(), name.parse().unwrap())).is_ok() {} else {
-                    println!("DEBUG: Message from {} could not be send to broadcast", &name);
+                    warn!("Message from {} could not be send to broadcast", &name);
                 }
             }
             Err(_) => {
                 let err_msg = format!("{} has left the chat", &name);
                 if sender.send((err_msg, name.parse().unwrap())).is_ok() {} else {
-                    println!("DEBUG: Exit message from {} could not be send to broadcast", &name);
+                    warn!("Exit message from {} could not be send to broadcast", &name);
                 }
                 break;
             }
@@ -95,6 +98,8 @@ async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, se
 
 #[tokio::main]
 async fn main() {
+    SimpleLogger::new().init().unwrap();
+
     let listener = TcpListener::bind(LOCAL).await.unwrap();
 
     let clients: Arc<DashMap<String, OwnedWriteHalf>> = Arc::new(DashMap::with_capacity(MAX_CLIENT_NUM));//klienci
@@ -107,7 +112,7 @@ async fn main() {
     tokio::spawn(async move {
         loop {
             if let Ok(msg) = receiver.recv().await {
-                println!("Broadcasting message : {}", msg.0);
+                info!("Broadcasting message : {}", msg.0);
                 broadcast(&mut clients_cp, &msg.0, &msg.1).await;
             }
         }
@@ -119,17 +124,17 @@ async fn main() {
         let ( socket, addr) = listener.accept().await.unwrap();
         let sender = sender.clone();//klonowanie tx dla kazdego klienta
         //let mut receiver = sender.subscribe();//nowy rx dla każdego klienta
-        println!("Incoming connection from {}", addr);
+        info!("Incoming connection from {}", addr);
         let (reader, mut writer) = socket.into_split(); //podział socketa na czytanie i pisanie
 
         let mut clients_mut = clients.clone();
         let len = clients_mut.len();
         if len >= MAX_CLIENT_NUM {
-            println!("Refusing the connection. Chat is full");
+            info!("Refusing the connection. Chat is full");
             let refuse_msg = format!("Chat is full. ({}/{}). Try again later!", MAX_CLIENT_NUM, MAX_CLIENT_NUM);
             writer.write(refuse_msg.as_bytes()).await.expect("Error on write to client!");
         } else {
-            println!("Initializing client no. {}. Requesting username", len);
+            info!("Initializing client no. {}. Requesting username", len);
 
             tokio::spawn(async move { //spawnowanie taska obsługi klienta
 
@@ -139,18 +144,18 @@ async fn main() {
                 if let  Ok(name) = request_username(&mut reader, &mut writer, &mut clients_mut).await
                 {
                     clients_mut.insert(name.clone(), writer);
-                    println!("Client {} has joined", name); //debug msg
+                    info!("Client {} has joined", name); //debug msg
 
                     let arrival_msg = format!("User {} has joined. \n", name);
                     if sender.send((arrival_msg, name.clone())).is_ok(){}
                     else{
-                        println!("DEBUG: message from {} could not be broadcast", name);
+                        info!("DEBUG: message from {} could not be broadcast", name);
                     }
 
                     handle_connection(&mut reader, &name, sender).await;
                     //koniec połączenia
                     clients_mut.remove(&name);
-                    println!("Client {} has left the chat", name);
+                    info!("Client {} has left the chat", name);
 
                 }
             });
