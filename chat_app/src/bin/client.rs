@@ -13,6 +13,7 @@ use serde::{Serialize, Deserialize};
 use serde_json;
 use std::string::String;
 
+
 const SERVER: &str = "localhost:8080";
 const QUIT: &str = "/quit\n";
 
@@ -84,15 +85,21 @@ fn get_initial_data() -> Message {
     println!("Enter channel number(1 - 10)");
     let channel_size = stdin().read_line(&mut channel_str);
     let channel: usize = channel_str.trim().parse().unwrap();
-    Message::Hello { username, channel }
+    let username = username.trim();
+    Message::Hello { username:username.to_string(), channel }
 }
 
 
 async fn send_data(writer: &mut BufWriter<OwnedWriteHalf>, reader: &mut BufReader<OwnedReadHalf>) {
     loop {
         let hello = get_initial_data();
-        let sent = writer.write(serde_json::to_string(&hello).unwrap().as_bytes()).await;
+        let mut serialized: String = serde_json::to_string(&hello).unwrap();
+        serialized.push('\n');
+        let sent = writer.write(serialized.as_bytes()).await;
+        let _ = writer.flush().await;
         let mut line = String::new();
+        info!("sent message to server");
+
         match reader.read_line(&mut line).await {
             Ok(mess) => {
                 let message = serde_json::from_str(line.as_str());
@@ -100,11 +107,14 @@ async fn send_data(writer: &mut BufWriter<OwnedWriteHalf>, reader: &mut BufReade
                     Ok(Message::UsernameTaken { .. }) => {
                         println!("Username  taken. Enter data again");
                     }
-                    Ok(Message::Ok { .. }) => { break; }
-                    _ => error!("Unexpected message from server!"),
+                    Ok(Message::Ok { .. }) => {
+                        info!("received ok message from server");
+                        break;
+                    }
+                    _ => error!("Unexpected message from server(message): {} !", serde_json::to_string(&message.unwrap()).unwrap()),
                 }
             }
-            Err(_) => { error!("Error on receiving from server") }
+            Err(_) => { error!("Error on receiving from server(ERR)") }
         }
     }
 }
@@ -123,6 +133,7 @@ async fn main() {
     let (sender, mut receiver) = mpsc::channel::<Message>(10);//10 wiadomości
 
     send_data(&mut writer, &mut reader).await;
+    info!("sent username and channel no to server");
     let mut line = String::new();
     match reader.read_line(&mut line).await {
         Ok(_) => {
@@ -132,6 +143,7 @@ async fn main() {
                     println!("Chat is full. try again later!");
                     return;
                 }
+                _ => error!("error deserializing message")
             }
         }
         Err(_) => {

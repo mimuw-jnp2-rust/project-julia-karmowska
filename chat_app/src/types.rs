@@ -10,6 +10,7 @@ pub struct User {
     pub id: Uuid,
     pub name: String,
 }
+
 impl User {
     pub fn new(id: Uuid, name: &str) -> Self {
         User {
@@ -20,10 +21,9 @@ impl User {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-
-struct Text{
-    pub time : DateTime<Utc>,
-    pub user :String,
+struct Text {
+    pub time: DateTime<Utc>,
+    pub user: String,
     pub text: String,
 }
 
@@ -31,7 +31,7 @@ struct Text{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Message {
     ClientMessage {
-        message:String
+        message: String
     },
     Hello {
         username: String,
@@ -47,12 +47,16 @@ pub enum Message {
     UsernameTaken,
     Ok,
     ChatFull,
-    BroadcastMessage{
-        message:String,
-        user:String
-    }
+    BroadcastMessage {
+        message: String,
+        user: String,
+    },
+    UserJoined {
+        user: String,
+    },
 }
-pub struct ServerMessage{
-    user:User,
+
+pub struct ServerMessage {
+    user: User,
     text: String,
 }
