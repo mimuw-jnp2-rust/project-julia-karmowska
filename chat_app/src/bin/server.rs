@@ -1,4 +1,4 @@
-use std::ops::{ DerefMut};
+use std::ops::{DerefMut};
 use std::sync::{Arc};
 use tokio::net::{TcpListener};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -8,7 +8,7 @@ use dashmap::DashMap;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use log::{info, warn, };
+use log::{info, warn};
 use simple_logger::SimpleLogger;
 use chat_app::types::Message;
 
@@ -45,7 +45,7 @@ async fn broadcast(clients: &mut Arc<DashMap<String, OwnedWriteHalf>>, message: 
     }
 }
 
-async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, _sender: Sender<String>)->Result<()>
+async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, _sender: Sender<String>) -> Result<()>
 {
     loop {
         let _msg = receive_msg(reader, name).await.unwrap();
@@ -76,7 +76,6 @@ struct Channel {
 }
 
 
-
 async fn read_username_and_channel(reader: &mut BufReader<OwnedReadHalf>) -> Result<Message> {
     let mut buffer = String::with_capacity(NAME_SIZE);
     loop {
@@ -88,7 +87,7 @@ async fn read_username_and_channel(reader: &mut BufReader<OwnedReadHalf>) -> Res
         println!("Message hello: {:?}", message);
         if let Message::Hello {
             username: _,
-             channel
+            channel
         } = message {
             if channel >= CHANNEL_COUNT
             { return Err(anyhow!("Channel number too big")); }
@@ -97,35 +96,28 @@ async fn read_username_and_channel(reader: &mut BufReader<OwnedReadHalf>) -> Res
     }
 }
 
-async fn manage_client(reader: OwnedReadHalf, writer: OwnedWriteHalf, channels: Arc<Mutex<Vec<Channel>>>) ->Result<()>{
+async fn manage_client(reader: OwnedReadHalf, writer: OwnedWriteHalf, channels: Arc<Mutex<Vec<Channel>>>) -> Result<()> {
     let mut reader = BufReader::new(reader); //buffer czyta z socketa tcp od klienta
-    info!("Client managing");
-    if let Ok(Message::Hello {username, channel}) = read_username_and_channel(&mut reader).await
+    if let Ok(Message::Hello { username, channel }) = read_username_and_channel(&mut reader).await
     {
-        info!("read ok");
-         let mut channels_lock = channels.lock().await;
-        info!("locked mutex");
+        let mut channels_lock = channels.lock().await;
         let channel_r = channels_lock.deref_mut().get_mut(channel).unwrap();
         channel_r.users.insert(username.clone(), writer);
-        info!("Client {} has joined", username); //debug msg
+        info!("Client {} has joined", username);
         let mut serialized = serde_json::to_string(&Message::Ok).unwrap();
         serialized.push('\n');
         channel_r.users.get_mut(username.as_str()).unwrap().value_mut().write(serialized.as_bytes()).await?;
         let _ = channel_r.users.get_mut(username.as_str()).unwrap().value_mut().flush().await;
         info!("sent ok");
-        broadcast(&mut channel_r.users, Message::UserJoined {user:username.clone()}).await;
-        /*if sender.send(serde_json::to_string(&Message::UserJoined {user:username.clone()}).unwrap().as_bytes()).is_ok() {} else {
-            info!("DEBUG: message from {} could not be broadcast", username);
-        }*/
-
-
-        //handle_connection(&mut reader, &name, sender).await;
+        //todo user musi odbierac userjoined po tym jak dolaczy
+        broadcast(&mut channel_r.users, Message::UserJoined { user: username.clone() }).await;
+        //todo!!!!!!!!!!
+        //handle_connection(&mut reader, &name, sender).await?;
         //koniec połączenia
         channel_r.users.remove(username.as_str());
-drop(channels_lock);
+        drop(channels_lock);
         info!("Client {} has left the chat", username.as_str());
-    }
-    else { warn!("Wrong message from client") }/**/
+    } else { warn!("Wrong message from client") }/**/
     Ok(())
 }
 

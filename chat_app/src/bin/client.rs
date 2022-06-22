@@ -23,6 +23,7 @@ async fn read_msg(mut reader: BufReader<OwnedReadHalf>, mut receiver: Receiver<M
         line.clear();
 
         let received = reader.read_line(&mut line).await;
+        info!("received msg from server");
         if let Ok(_received_msg) = receiver.try_recv() { //wiadomość od drugiego taska o zakończeniu
             println!("You have left the chat.");
             break;
@@ -52,7 +53,7 @@ async fn write_msg(mut writer: BufWriter<OwnedWriteHalf>, sender: Sender<Message
                 let _mes: Message = serde_json::from_str(input.as_str()).unwrap();
                 if input == *QUIT {//user wpisał quit
                     let _quit_msg = input.clone();
-                    match sender.send(Message::Quit {}).await { //wysyłanie wiadomości o zakończeniu
+                    match sender.send(Message::Quit).await { //wysyłanie wiadomości o zakończeniu
                         Ok(_) => {}
                         Err(_) => {
                             warn!("Error on sending exit");
@@ -60,7 +61,9 @@ async fn write_msg(mut writer: BufWriter<OwnedWriteHalf>, sender: Sender<Message
                     }
                     break;
                 }
-                let res = writer.write(input.as_bytes()).await; //wysyłanie do servera wiadomości
+                let mut serialized = serde_json::to_string(&Message::ClientMessage {message: input.trim().parse().unwrap() }).unwrap();
+                serialized.push('\n');
+                let res = writer.write(serialized.as_bytes()).await; //wysyłanie do servera wiadomości
                 match res {
                     Ok(_) => { writer.flush().await.expect("Failed to flush buffer") }
                     Err(_) => {
@@ -86,7 +89,7 @@ fn get_initial_data() -> Message {
     let _channel_size = stdin().read_line(&mut channel_str);
     let channel: usize = channel_str.trim().parse().unwrap();
     let username = username.trim();
-    Message::Hello { username:username.to_string(), channel }
+    Message::Hello { username: username.to_string(), channel }
 }
 
 
@@ -104,14 +107,17 @@ async fn send_data(writer: &mut BufWriter<OwnedWriteHalf>, reader: &mut BufReade
             Ok(_mess) => {
                 let message = serde_json::from_str(line.as_str());
                 match message {
-                    Ok(Message::UsernameTaken { .. }) => {
+                    Ok(Message::UsernameTaken) => {
                         println!("Username  taken. Enter data again");
                     }
                     Ok(Message::Ok { .. }) => {
                         info!("received ok message from server");
                         break;
                     }
-                    _ => error!("Unexpected message from server(message): {} !", serde_json::to_string(&message.unwrap()).unwrap()),
+                    Ok(Message::ChatFull) => {
+                        println!("Chat is full. try again later!");
+                    }
+                    _ => error!("Unexpected message from server (message): {} !", serde_json::to_string(&message.unwrap()).unwrap()),
                 }
             }
             Err(_) => { error!("Error on receiving from server(ERR)") }
@@ -134,23 +140,6 @@ async fn main() {
 
     send_data(&mut writer, &mut reader).await;
     info!("sent username and channel no to server");
-    let mut line = String::new();
-    match reader.read_line(&mut line).await {
-        Ok(_) => {
-            match serde_json::from_str(line.as_str()) {
-                Ok(Message::Ok {}) => {}
-                Ok(Message::ChatFull {}) => {
-                    println!("Chat is full. try again later!");
-                    return;
-                }
-                _ => error!("error deserializing message")
-            }
-        }
-        Err(_) => {
-            error!("error on reading from server");
-            return;
-        }
-    };
 
     tokio::spawn(async move {
         read_msg(reader, receiver).await;
