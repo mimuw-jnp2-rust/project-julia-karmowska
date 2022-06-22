@@ -25,7 +25,7 @@ async fn write_buf<'a>(writer: &mut OwnedWriteHalf, message: &str) {
 }
 
 
-async fn receive_msg(reader: &mut BufReader<OwnedReadHalf>, user: &str) -> Result<String> {
+async fn receive_msg(reader: &mut BufReader<OwnedReadHalf>, _user: &str) -> Result<String> {
     let mut buffer = String::with_capacity(MESSAGE_SIZE);
     match reader.read_line(&mut buffer).await {
         Ok(_) => {
@@ -45,10 +45,10 @@ async fn broadcast(clients: &mut Arc<DashMap<String, OwnedWriteHalf>>, message: 
     }
 }
 
-async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, sender: Sender<String>)->Result<()>
+async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, _sender: Sender<String>)->Result<()>
 {
     loop {
-        let msg = receive_msg(reader, name).await.unwrap();
+        let _msg = receive_msg(reader, name).await.unwrap();
         //todo tutaj powinno byc switch po typie wiadomosci od usera.
         /*match msg {
             Ok(_) => {
@@ -84,10 +84,10 @@ async fn read_username_and_channel(reader: &mut BufReader<OwnedReadHalf>) -> Res
 
         reader.read_line(&mut buffer).await.expect("TODO: panic message");
 
-        let mut message: Message = serde_json::from_str(buffer.as_str())?;
+        let message: Message = serde_json::from_str(buffer.as_str())?;
         println!("Message hello: {:?}", message);
         if let Message::Hello {
-            ref mut username,
+            username: _,
              channel
         } = message {
             if channel >= CHANNEL_COUNT
@@ -97,7 +97,7 @@ async fn read_username_and_channel(reader: &mut BufReader<OwnedReadHalf>) -> Res
     }
 }
 
-async fn manage_client(reader: OwnedReadHalf, mut writer: OwnedWriteHalf, channels: Arc<Mutex<Vec<Channel>>>) ->Result<()>{
+async fn manage_client(reader: OwnedReadHalf, writer: OwnedWriteHalf, channels: Arc<Mutex<Vec<Channel>>>) ->Result<()>{
     let mut reader = BufReader::new(reader); //buffer czyta z socketa tcp od klienta
     info!("Client managing");
     if let Ok(Message::Hello {username, channel}) = read_username_and_channel(&mut reader).await
@@ -133,7 +133,7 @@ drop(channels_lock);
 async fn manage_communication(channels_cp: Arc<Mutex<Vec<Channel>>>, i: usize) {
     loop {
         let mut guard = channels_cp.lock().await;
-        let mut receiver_ptr = Arc::clone(&guard.deref_mut().get_mut(i).unwrap().receiver);
+        let receiver_ptr = Arc::clone(&guard.deref_mut().get_mut(i).unwrap().receiver);
         //let mut receiver_ptr = Arc::clone(&channel.receiver);
         let mut receiver_guard = receiver_ptr.lock().await;
         let receiver = receiver_guard.deref_mut();
@@ -156,7 +156,7 @@ async fn main() {
     let channels: Arc<Mutex<Vec<Channel>>> = Arc::new(Mutex::new(Vec::with_capacity(CHANNEL_COUNT)));
 
     for _i in 0..CHANNEL_COUNT {
-        let (sender, mut receiver) = mpsc::channel::<Message>(MAX_CLIENT_NUM);
+        let (sender, receiver) = mpsc::channel::<Message>(MAX_CLIENT_NUM);
         let users: Arc<DashMap<String, OwnedWriteHalf>> = Arc::new(DashMap::with_capacity(MAX_CLIENT_NUM));//klienci
         let sender = Arc::new(Mutex::new(sender));
         let receiver = Arc::new(Mutex::new(receiver));
@@ -168,7 +168,7 @@ async fn main() {
 
 
     for i in 0..CHANNEL_COUNT {
-        let mut channels_cp = Arc::clone(&channels);
+        let channels_cp = Arc::clone(&channels);
 
         tokio::spawn(async move {
             manage_communication(channels_cp, i).await
@@ -180,9 +180,9 @@ async fn main() {
     loop {
         let (socket, addr) = listener.accept().await.unwrap();
         info!("Incoming connection from {}", addr);
-        let (reader, mut writer) = socket.into_split();
+        let (reader, writer) = socket.into_split();
 
-        let mut channels_cp = Arc::clone(&channels);
+        let channels_cp = Arc::clone(&channels);
 
 
         info!("Initializing new client. Waiting for username and channel number");

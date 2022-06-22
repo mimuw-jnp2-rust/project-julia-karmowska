@@ -1,5 +1,5 @@
 use std::io::stdin;
-use std::string;
+
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::net::{TcpStream};
 use tokio::sync::mpsc;
@@ -9,8 +9,8 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::mpsc::{Receiver, Sender};
 use chat_app::types;
 use types::Message;
-use serde::{Serialize, Deserialize};
-use serde_json;
+
+
 use std::string::String;
 
 
@@ -49,9 +49,9 @@ async fn write_msg(mut writer: BufWriter<OwnedWriteHalf>, sender: Sender<Message
         let msg_send = stdin().read_line(&mut input); //user wpisuje wiadomość
         match msg_send {
             Ok(_) => {
-                let mes: Message = serde_json::from_str(input.as_str()).unwrap();
+                let _mes: Message = serde_json::from_str(input.as_str()).unwrap();
                 if input == *QUIT {//user wpisał quit
-                    let quit_msg = input.clone();
+                    let _quit_msg = input.clone();
                     match sender.send(Message::Quit {}).await { //wysyłanie wiadomości o zakończeniu
                         Ok(_) => {}
                         Err(_) => {
@@ -80,10 +80,10 @@ fn get_initial_data() -> Message {
     println!("Enter your username");
 
     let mut username = String::new();
-    let user_size = stdin().read_line(&mut username);
+    let _user_size = stdin().read_line(&mut username);
     let mut channel_str = String::new();
     println!("Enter channel number(1 - 10)");
-    let channel_size = stdin().read_line(&mut channel_str);
+    let _channel_size = stdin().read_line(&mut channel_str);
     let channel: usize = channel_str.trim().parse().unwrap();
     let username = username.trim();
     Message::Hello { username:username.to_string(), channel }
@@ -95,13 +95,13 @@ async fn send_data(writer: &mut BufWriter<OwnedWriteHalf>, reader: &mut BufReade
         let hello = get_initial_data();
         let mut serialized: String = serde_json::to_string(&hello).unwrap();
         serialized.push('\n');
-        let sent = writer.write(serialized.as_bytes()).await;
+        let _sent = writer.write(serialized.as_bytes()).await;
         let _ = writer.flush().await;
         let mut line = String::new();
         info!("sent message to server");
 
         match reader.read_line(&mut line).await {
-            Ok(mess) => {
+            Ok(_mess) => {
                 let message = serde_json::from_str(line.as_str());
                 match message {
                     Ok(Message::UsernameTaken { .. }) => {
@@ -130,7 +130,7 @@ async fn main() {
 
     let mut reader = BufReader::new(read);
     let mut writer = BufWriter::new(write);
-    let (sender, mut receiver) = mpsc::channel::<Message>(10);//10 wiadomości
+    let (sender, receiver) = mpsc::channel::<Message>(10);//10 wiadomości
 
     send_data(&mut writer, &mut reader).await;
     info!("sent username and channel no to server");
