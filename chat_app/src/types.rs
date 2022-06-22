@@ -40,12 +40,19 @@ pub enum Message {
     History {
         messages: BTreeMap<String, String>,
     },
-    Quit {
-    },
+    Quit,
     SwitchChannel {
         new_channel: usize,
     },
-    UsernameTaken{},
-    Ok{},
-    ChatFull{}
+    UsernameTaken,
+    Ok,
+    ChatFull,
+    BroadcastMessage{
+        message:String,
+        user:String
+    }
+}
+pub struct ServerMessage{
+    user:User,
+    text: String,
 }
