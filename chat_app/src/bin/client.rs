@@ -111,7 +111,7 @@ fn get_initial_data() -> Message {
         if let Ok(channel) = channel_str.trim().parse::<usize>() {
             channel_res = channel
         }
-        if channel_res < 1 || channel_res > CHANNEL_COUNT {
+        if !(1..=CHANNEL_COUNT).contains(&channel_res) {
             println!("Wrong channel number!");
         } else { break; }
     }

@@ -93,21 +93,19 @@ struct Channel {
 
 async fn read_username_and_channel(reader: &mut BufReader<OwnedReadHalf>) -> Result<Message> {
     let mut buffer = String::with_capacity(NAME_SIZE);
-    loop {
-        buffer.clear();
-        reader.read_line(&mut buffer).await.expect("TODO: panic message");
+    buffer.clear();
+    reader.read_line(&mut buffer).await.expect("TODO: panic message");
 
-        let message: Message = serde_json::from_str(buffer.as_str())?;
+    let message: Message = serde_json::from_str(buffer.as_str())?;
 
-        if let Message::Hello {
-            username: _,
-            channel
-        } = message {
-            if channel >= CHANNEL_COUNT
-            { return Err(anyhow!("Channel number too big")); }
-        } else { return Err(anyhow!("wrong message from user")); };
-        return Ok(message);
-    }
+    if let Message::Hello {
+        username: _,
+        channel
+    } = message {
+        if channel >= CHANNEL_COUNT
+        { return Err(anyhow!("Channel number too big")); }
+    } else { return Err(anyhow!("wrong message from user")); };
+    Ok(message)
 }
 
 async fn manage_client(reader: OwnedReadHalf, writer: OwnedWriteHalf, channels: Arc<Mutex<Vec<Channel>>>) -> Result<()> {
