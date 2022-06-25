@@ -9,19 +9,19 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::mpsc::{Receiver, Sender};
 use chat_app::types;
 use types::Message;
-
-
 use std::string::String;
 
 
 const SERVER: &str = "localhost:8080";
 const QUIT: &str = "/quit\n";
+const CHANNEL_COUNT: usize = 10;
+const MESSAGE_COUNT: usize = 1000;
 
 async fn read_msg(mut reader: BufReader<OwnedReadHalf>, mut receiver: Receiver<Message>) {
     let mut line = String::new();
     loop {
         line.clear();
-
+        info!("waiting for msg from server!");
         let received = reader.read_line(&mut line).await;
         info!("received msg from server");
         if let Ok(_received_msg) = receiver.try_recv() { //wiadomość od drugiego taska o zakończeniu
@@ -34,7 +34,11 @@ async fn read_msg(mut reader: BufReader<OwnedReadHalf>, mut receiver: Receiver<M
                     if len == 0 {
                         break;
                     }
-                    print!("{}", line); //wypisywanie otrzymanej wiadomości
+                    match serde_json::from_str(&line).unwrap() {
+                        Message::BroadcastMessage { message, user } => println!("{} : {}", user, message),
+                        Message::UserJoined { user } => println!("User {} joined!", user),
+                        _ => {}
+                    }
                 }
             Err(_) => {
                 info!("Connection lost! type {} to quit", QUIT.trim());
@@ -47,28 +51,42 @@ async fn write_msg(mut writer: BufWriter<OwnedWriteHalf>, sender: Sender<Message
     let mut input = String::new();
     loop {
         input.clear();
-        let msg_send = stdin().read_line(&mut input); //user wpisuje wiadomość
+        let msg_send = stdin().read_line(&mut input);
+        info!("read message from stdin");
+
         match msg_send {
             Ok(_) => {
-                let _mes: Message = serde_json::from_str(input.as_str()).unwrap();
-                if input == *QUIT {//user wpisał quit
-                    let _quit_msg = input.clone();
+                if input == *QUIT {
                     match sender.send(Message::Quit).await { //wysyłanie wiadomości o zakończeniu
                         Ok(_) => {}
                         Err(_) => {
                             warn!("Error on sending exit");
                         }
                     }
+                    let mut serialized = serde_json::to_string(&Message::Quit).unwrap();
+                    serialized.push('\n');
+                    let res = writer.write(serialized.as_bytes()).await;
+                    match res {
+                        Ok(_) => { writer.flush().await.expect("Failed to flush buffer") }
+                        Err(_) => {
+                            warn!("Connection lost! type {} to quit", QUIT.trim());
+                            break;
+                        }
+                    }
                     break;
-                }
-                let mut serialized = serde_json::to_string(&Message::ClientMessage {message: input.trim().parse().unwrap() }).unwrap();
-                serialized.push('\n');
-                let res = writer.write(serialized.as_bytes()).await; //wysyłanie do servera wiadomości
-                match res {
-                    Ok(_) => { writer.flush().await.expect("Failed to flush buffer") }
-                    Err(_) => {
-                        warn!("Connection lost! type {} to quit", QUIT.trim());
-                        break;
+                } else {
+                    let mut serialized = serde_json::to_string(&Message::ClientMessage { message: input.trim().parse().unwrap() }).unwrap();
+                    serialized.push('\n');
+                    let res = writer.write(serialized.as_bytes()).await; //wysyłanie do servera wiadomości
+                    match res {
+                        Ok(_) => {
+                            writer.flush().await.expect("Failed to flush buffer");
+                            info!("Sent message to server");
+                        }
+                        Err(_) => {
+                            warn!("Connection lost! type {} to quit", QUIT.trim());
+                            break;
+                        }
                     }
                 }
             }
@@ -84,12 +102,22 @@ fn get_initial_data() -> Message {
 
     let mut username = String::new();
     let _user_size = stdin().read_line(&mut username);
-    let mut channel_str = String::new();
-    println!("Enter channel number(1 - 10)");
-    let _channel_size = stdin().read_line(&mut channel_str);
-    let channel: usize = channel_str.trim().parse().unwrap();
+    let mut channel_res: usize = 0;
+
+    loop {
+        println!("Enter channel number (1 - {})", CHANNEL_COUNT);
+        let mut channel_str = String::new();
+        let _channel_size = stdin().read_line(&mut channel_str);
+        if let Ok(channel) = channel_str.trim().parse::<usize>() {
+            channel_res = channel
+        }
+        if channel_res < 1 || channel_res > CHANNEL_COUNT {
+            println!("Wrong channel number!");
+        } else { break; }
+    }
+
     let username = username.trim();
-    Message::Hello { username: username.to_string(), channel }
+    Message::Hello { username: username.to_string(), channel: channel_res }
 }
 
 
@@ -101,7 +129,6 @@ async fn send_data(writer: &mut BufWriter<OwnedWriteHalf>, reader: &mut BufReade
         let _sent = writer.write(serialized.as_bytes()).await;
         let _ = writer.flush().await;
         let mut line = String::new();
-        info!("sent message to server");
 
         match reader.read_line(&mut line).await {
             Ok(_mess) => {
@@ -111,7 +138,7 @@ async fn send_data(writer: &mut BufWriter<OwnedWriteHalf>, reader: &mut BufReade
                         println!("Username  taken. Enter data again");
                     }
                     Ok(Message::Ok { .. }) => {
-                        info!("received ok message from server");
+                        println!("Welcome to the chat!");
                         break;
                     }
                     Ok(Message::ChatFull) => {
@@ -136,10 +163,8 @@ async fn main() {
 
     let mut reader = BufReader::new(read);
     let mut writer = BufWriter::new(write);
-    let (sender, receiver) = mpsc::channel::<Message>(10);//10 wiadomości
-
     send_data(&mut writer, &mut reader).await;
-    info!("sent username and channel no to server");
+    let (sender, receiver) = mpsc::channel::<Message>(MESSAGE_COUNT);
 
     tokio::spawn(async move {
         read_msg(reader, receiver).await;
@@ -148,4 +173,5 @@ async fn main() {
     tokio::spawn(async move {
         write_msg(writer, sender).await;
     });
+    info!("main");
 }

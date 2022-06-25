@@ -1,32 +1,5 @@
-
 use std::collections::{BTreeMap};
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
-
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct User {
-    pub id: Uuid,
-    pub name: String,
-}
-
-impl User {
-    pub fn new(id: Uuid, name: &str) -> Self {
-        User {
-            id,
-            name: String::from(name),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct Text {
-    pub time: DateTime<Utc>,
-    pub user: String,
-    pub text: String,
-}
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Message {
@@ -41,6 +14,9 @@ pub enum Message {
         messages: BTreeMap<String, String>,
     },
     Quit,
+    UserQuit {
+        user: String,
+    },
     SwitchChannel {
         new_channel: usize,
     },
@@ -54,9 +30,4 @@ pub enum Message {
     UserJoined {
         user: String,
     },
-}
-
-pub struct ServerMessage {
-    user: User,
-    text: String,
 }
