@@ -21,8 +21,8 @@ const CHANNEL_COUNT: usize = 10;
 
 async fn write_buf<'a>(writer: &mut OwnedWriteHalf, message: &str) -> Result<()> {
     writer.write(message.as_bytes()).await?;
+    writer.write("\n".as_bytes()).await?;
     writer.flush().await?;
-    info!("flushed message");
     Ok(())
 }
 
@@ -63,8 +63,6 @@ async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, ch
                 let message = Message::BroadcastMessage { message, user: name.to_string() };
                 sender_guard.send(message).await?;
                 info!("Broadcast client message");
-                drop(sender_guard);
-                drop(guard);
             }
             Message::Quit => {
                 let mut guard = channels.lock().await;
@@ -72,8 +70,6 @@ async fn handle_connection(reader: &mut BufReader<OwnedReadHalf>, name: &str, ch
                 let sender_guard = channel.sender.lock().await;
                 let message = Message::UserQuit { user: name.to_string() };
                 sender_guard.send(message).await?;
-                drop(sender_guard);
-                drop(guard);
                 break;
             }
             _ => {
@@ -94,7 +90,7 @@ struct Channel {
 async fn read_username_and_channel(reader: &mut BufReader<OwnedReadHalf>) -> Result<Message> {
     let mut buffer = String::with_capacity(NAME_SIZE);
     buffer.clear();
-    reader.read_line(&mut buffer).await.expect("TODO: panic message");
+    reader.read_line(&mut buffer).await?;
 
     let message: Message = serde_json::from_str(buffer.as_str())?;
 
@@ -127,7 +123,9 @@ async fn manage_client(reader: OwnedReadHalf, writer: OwnedWriteHalf, channels: 
         handle_connection(&mut reader, &username, channel, Arc::clone(&channels)).await?;
 
         //koniec połączenia
-        //channel_r.users.remove(username.as_str());
+        let mut channels_lock = channels.lock().await;
+        let channel_r = channels_lock.deref_mut().get_mut(channel).unwrap();
+        channel_r.users.remove(username.as_str());
         info!("Client {} has left the chat", username.as_str());
     } else { warn!("Wrong message from client") }/**/
     Ok(())
@@ -145,7 +143,6 @@ async fn manage_communication(channels_cp: Arc<Mutex<Vec<Channel>>>, i: usize) -
             info!("Broadcasting message to channel {}",i);
             broadcast(&mut channels_cp.lock().await.deref_mut().get_mut(i).unwrap().users, msg).await?;
         }
-        drop(receiver_guard);
     }
 }
 

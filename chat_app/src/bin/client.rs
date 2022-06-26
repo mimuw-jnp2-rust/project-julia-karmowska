@@ -34,7 +34,8 @@ async fn read_msg(mut reader: BufReader<OwnedReadHalf>, mut receiver: Receiver<M
                     if len == 0 {
                         break;
                     }
-                    match serde_json::from_str(&line).unwrap() {
+                    let line = line.trim();
+                    match serde_json::from_str(line).unwrap() {
                         Message::BroadcastMessage { message, user } => println!("{} : {}", user, message),
                         Message::UserJoined { user } => println!("User {} joined!", user),
                         _ => {}
